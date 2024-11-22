@@ -43,6 +43,8 @@ If you use this code in your research, please cite:
 }
 ```
 
+![Dynamic Filters](dyn_filters.gif)
+
 ## License
 
 This project is licensed under the MIT License.
