@@ -4,7 +4,7 @@ A novel approach for bridging 2D and 3D medical imaging analysis through cross-d
 
 ## Overview
 
-Cross-D Conv introduces a groundbreaking method that enables seamless weight transfer between 2D and 3D convolution operations through Fourier domain phase shifting[1]. This solution addresses the common challenge in biomedical imaging where 3D data, while more applicable, is scarce compared to abundant 2D samples[1].
+Cross-D Conv introduces a method that enables seamless weight transfer between 2D and 3D convolution operations through Fourier domain phase shifting. This solution addresses the common challenge in biomedical imaging where 3D data, while more applicable, is scarce compared to abundant 2D samples.
 
 ## Key Features
 
