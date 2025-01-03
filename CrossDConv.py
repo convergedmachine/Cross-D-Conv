@@ -50,9 +50,9 @@ class CrossDConv(nn.Module):
         rot_map = self.rotation_params(x)
 
         # Aggregate over spatial dims => (batch_size, 4)
-        max_abs_values = rot_map.abs().amax(dim=(2, 3))
-        sign_mask = (rot_map == max_abs_values.unsqueeze(-1).unsqueeze(-1)).float()
-        rot_vec = (sign_mask * rot_map).sum(dim=(2, 3))
+        # rot_map: (B, 4, H, W)
+        spatial_weights = F.softmax(rot_map.view(B, 4, -1), dim=-1)  
+        rot_vec = (rot_map.view(B, 4, -1) * spatial_weights).sum(dim=-1)
 
         # Split into (k_x, k_y, k_z) and angle
         k = rot_vec[:, 0:3]           # (batch_size, 3)
