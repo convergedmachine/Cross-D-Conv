@@ -46,12 +46,13 @@ class CrossDConv(nn.Module):
         """
         Predict dynamic axis (k_x, k_y, k_z) and angle (theta) from x.
         """
+        B = x.size(0)
         # shape: (batch_size, 4, H, W)
         rot_map = self.rotation_params(x)
 
         # Aggregate over spatial dims => (batch_size, 4)
         # rot_map: (B, 4, H, W)
-        spatial_weights = F.softmax(rot_map.view(x.size(0), 4, -1), dim=-1)  
+        spatial_weights = F.softmax(rot_map.view(B, 4, -1), dim=-1)  
         rot_vec = (rot_map.view(B, 4, -1) * spatial_weights).sum(dim=-1)
 
         # Split into (k_x, k_y, k_z) and angle
