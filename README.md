@@ -43,7 +43,7 @@ If you use this code in your research, please cite:
 }
 ```
 
-![Dynamic Filters](dyn_filters.gif)
+![Dynamic Filters](dyns_filters.gif)
 
 ## License
 
