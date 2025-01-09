@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import time
 
 class CrossDConv(nn.Module):
     def __init__(
@@ -31,7 +32,7 @@ class CrossDConv(nn.Module):
         )
         nn.init.kaiming_normal_(self.weights_3d, mode='fan_out', nonlinearity='relu')
 
-        # rotation_params now predicts (k_x, k_y, k_z, angle)
+        # Rotation parameters network
         self.rotation_params = nn.Sequential(
             nn.Conv2d(in_channels, 16, kernel_size=1),
             nn.BatchNorm2d(16),
@@ -165,13 +166,14 @@ class CrossDConv(nn.Module):
 
         # 2) Rotate weights
         rotated_weights = self.rotate_weights_fft(k, angle)
-        # => (batch_size, out_ch, in_ch_per_grp, K, K, K)
+        # => (batch_size, out_ch, in_ch_per_group, K, K, K)
 
         # 3) Extract 2D kernel slice
         mid_slice = self.kernel_size // 2
         twod_kernels = rotated_weights[:, :, :, mid_slice, :, :]  # shape => (batch, out_ch, in_ch//grp, K, K)
 
         # 4) Reshape for group conv
+        # Reshape weights: (batch_size * out_channels, in_channels // groups, K, K)
         grouped_weights = twod_kernels.view(
             batch_size * self.out_channels,
             self.in_channels // self.groups,
@@ -179,49 +181,56 @@ class CrossDConv(nn.Module):
             self.kernel_size
         )
 
-        # 5) Reshape input for group convolution
+        # Reshape input: (1, batch_size * in_channels, H, W)
         x_grouped = x.view(1, batch_size * self.in_channels, x.size(2), x.size(3))
 
-        # 6) Perform grouped conv
+        # Determine the correct number of groups
+        groups = batch_size * self.groups
+
+        # Perform grouped convolution with groups=batch_size * self.groups
         conv_output = F.conv2d(
             x_grouped,
             grouped_weights,
             bias=None,
             stride=self.stride,
             padding=self.padding,
-            groups=batch_size * self.groups
+            groups=groups  # Corrected: groups=batch_size * self.groups
         )
-        # shape => (1, batch_size*out_ch, H_out, W_out)
+        # shape => (1, batch_size*out_channels, H_out, W_out)
 
-        # 7) Reshape back to (batch_size, out_channels, H_out, W_out)
+        # Reshape back to (batch_size, out_channels, H_out, W_out)
         conv_output = conv_output.view(batch_size, self.out_channels, conv_output.size(2), conv_output.size(3))
+
         return conv_output
 
 # -------------------------------------------------------------------
-# Example Benchmark Code (unchanged except for shape of rotation_params).
+# Example Benchmark Code (updated)
 # -------------------------------------------------------------------
-import time
-
 def benchmark():
     # Define input dimensions
     batch_size = 45
-    in_channels = 16
-    out_channels = 32
+    in_channels = 384  # Updated to match the error context
+    out_channels = 512  # Example value; adjust as needed
     height, width = 224, 224
     depth = 32  # For Conv3d
-    kernel_size = 7
+    kernel_size = 3  # Adjusted for the error context
 
     # Initialize inputs
     input_2d = torch.randn(batch_size, in_channels, height, width).cuda()
     input_3d = torch.randn(batch_size, in_channels, depth, 96, 96).cuda()
 
     # Initialize layers
+    # Calculate groups such that in_channels // groups is an integer
+    # For in_channels=384 and desired in_channels_per_group=3, groups=128
+    groups = 128
+
     conv2d = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=1).cuda()
     conv3d = nn.Conv3d(in_channels, out_channels, kernel_size=kernel_size, padding=1).cuda()
-    optimized_conv = CrossDConv(in_channels, out_channels, kernel_size, padding=3).cuda()
+    optimized_conv = CrossDConv(in_channels, out_channels, kernel_size, padding=1, groups=groups).cuda()
 
-    print("original shape:", input_2d.shape)
-    print("processed shape:", optimized_conv(input_2d).shape)
+    print("Original 2D Input Shape:", input_2d.shape)
+    print("Original 3D Input Shape:", input_3d.shape)
+    print("Processed 2D Output Shape:", optimized_conv(input_2d).shape)
     
     # Warm-up
     for _ in range(10):
