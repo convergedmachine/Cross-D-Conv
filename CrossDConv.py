@@ -189,7 +189,7 @@ class CrossDConv(nn.Module):
             bias=None,
             stride=self.stride,
             padding=self.padding,
-            groups=batch_size
+            groups=batch_size * self.groups
         )
         # shape => (1, batch_size*out_ch, H_out, W_out)
 
@@ -218,8 +218,11 @@ def benchmark():
     # Initialize layers
     conv2d = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=1).cuda()
     conv3d = nn.Conv3d(in_channels, out_channels, kernel_size=kernel_size, padding=1).cuda()
-    optimized_conv = CrossDConv(in_channels, out_channels, kernel_size).cuda()
+    optimized_conv = CrossDConv(in_channels, out_channels, kernel_size, padding=3).cuda()
 
+    print("original shape:", input_2d.shape)
+    print("processed shape:", optimized_conv(input_2d).shape)
+    
     # Warm-up
     for _ in range(10):
         conv2d(input_2d)
