@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import time
+from tqdm import tqdm
 
 class CrossDConv(nn.Module):
     def __init__(
@@ -203,72 +204,136 @@ class CrossDConv(nn.Module):
 
         return conv_output
 
-# -------------------------------------------------------------------
-# Example Benchmark Code (updated)
-# -------------------------------------------------------------------
-def benchmark():
-    # Define input dimensions
-    batch_size = 45
-    in_channels = 384  # Updated to match the error context
-    out_channels = 512  # Example value; adjust as needed
-    height, width = 224, 224
-    depth = 32  # For Conv3d
-    kernel_size = 3  # Adjusted for the error context
+try:
+    from acsconv import ACSConv3d
+    HAVE_ACSCONV = True
+except ImportError:
+    print("ACSConv not installed. Install via `pip install acsconv`.")
+    HAVE_ACSCONV = False
 
-    # Initialize inputs
-    input_2d = torch.randn(batch_size, in_channels, height, width).cuda()
-    input_3d = torch.randn(batch_size, in_channels, depth, 96, 96).cuda()
+def benchmark_single_pass(
+    layer, 
+    input_tensor, 
+    warmup=10, 
+    iters=100, 
+    label="layer"
+):
+    """
+    Times the forward pass of `layer` on `input_tensor`.
+    Performs a warmup, then measures `iters` runs.
+    Returns average runtime in seconds.
+    Uses tqdm for a progress bar around the loop.
+    """
+    # Warm-up with tqdm
+    for _ in tqdm(range(warmup), desc=f"{label} [Warmup]"):
+        _ = layer(input_tensor)
 
-    # Initialize layers
-    # Calculate groups such that in_channels // groups is an integer
-    # For in_channels=384 and desired in_channels_per_group=3, groups=128
-    groups = 128
-
-    conv2d = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=1).cuda()
-    conv3d = nn.Conv3d(in_channels, out_channels, kernel_size=kernel_size, padding=1).cuda()
-    optimized_conv = CrossDConv(in_channels, out_channels, kernel_size, padding=1, groups=groups).cuda()
-
-    print("Original 2D Input Shape:", input_2d.shape)
-    print("Original 3D Input Shape:", input_3d.shape)
-    print("Processed 2D Output Shape:", optimized_conv(input_2d).shape)
+    # Sync GPU before timing
+    torch.cuda.synchronize()
+    start = time.time()
     
-    # Warm-up
-    for _ in range(10):
-        conv2d(input_2d)
-        conv3d(input_3d)
-        optimized_conv(input_2d)
-
-    # Benchmark Conv2d
-    torch.cuda.synchronize()
-    start = time.time()
-    for _ in range(100):
-        out_conv2d = conv2d(input_2d)
+    # Main benchmark loop with tqdm
+    for _ in tqdm(range(iters), desc=f"{label} [Benchmark]"):
+        _ = layer(input_tensor)
+    
     torch.cuda.synchronize()
     end = time.time()
-    conv2d_time = end - start
 
-    # Benchmark Conv3d
-    torch.cuda.synchronize()
-    start = time.time()
-    for _ in range(100):
-        out_conv3d = conv3d(input_3d)
-    torch.cuda.synchronize()
-    end = time.time()
-    conv3d_time = end - start
+    avg_time = (end - start) / iters
+    print(f"{label}: {avg_time*1000:.3f} ms per iteration (avg over {iters} runs)")
+    return avg_time
 
-    # Benchmark OptimizedCrossDConv
-    torch.cuda.synchronize()
-    start = time.time()
-    for _ in range(100):
-        out_optimized = optimized_conv(input_2d)
-    torch.cuda.synchronize()
-    end = time.time()
-    optimized_time = end - start
 
-    print(f"Conv2d Time: {conv2d_time:.4f} seconds")
-    print(f"Conv3d Time: {conv3d_time:.4f} seconds")
-    print(f"CrossDConv (Small-Angle Approx.) Time: {optimized_time:.4f} seconds")
+def benchmark_comparison():
+    """
+    Compare Conv2d, CrossDConv, ACSConv, and Conv3d 
+    across various 2D and 3D input shapes.
+    """
+    import torch
+    import torch.nn as nn
+    
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # ----------------------------------------------------------------
+    # 1) Define multiple shapes for 2D experiments
+    #    Format: (batch_size, in_channels, H, W)
+    # ----------------------------------------------------------------
+    shapes_2d = [
+        (8, 64, 128, 128),
+        (16, 128, 224, 224),
+        (32, 384, 224, 224),
+    ]
+
+    # ----------------------------------------------------------------
+    # 2) Define multiple shapes for 3D experiments
+    #    Format: (batch_size, in_channels, D, H, W)
+    # ----------------------------------------------------------------
+    shapes_3d = [
+        (4, 64, 16, 64, 64),
+        (4, 64, 32, 96, 96),
+        (8, 128, 16, 128, 128),
+    ]
+
+    # Hyperparameters for the benchmark
+    kernel_size_2d = 3
+    kernel_size_3d = 3
+    out_channels_2d = 512
+    out_channels_3d = 512
+    
+    # ----------------------------------------------------------------
+    #  BENCHMARK: 2D Input
+    # ----------------------------------------------------------------
+    print("=========== 2D Input Benchmark ===========")
+    for shape in shapes_2d:
+        B, C, H, W = shape
+        print(f"\n--- Shape: {shape} ---")
+        x_2d = torch.randn(shape, device=device)
+        
+        # 2D conv
+        conv2d = nn.Conv2d(
+            in_channels=C,
+            out_channels=out_channels_2d,
+            kernel_size=kernel_size_2d,
+            padding=1
+        ).to(device)
+        
+        # CrossDConv (designed for 2D input, 3D-like kernel partitioning logic)
+        crossd = CrossDConv(
+            in_channels=C,
+            out_channels=out_channels_2d,
+            kernel_size=kernel_size_2d,
+            padding=1,
+            groups=1
+        ).to(device)
+
+        # 3D conv on 2D input => forcibly reshape input to (B, C, 1, H, W).
+        conv3d_2dshaped = nn.Conv3d(
+            in_channels=C,
+            out_channels=out_channels_2d,
+            kernel_size=kernel_size_3d,
+            padding=1
+        ).to(device)
+        x_2d_as_3d = x_2d.unsqueeze(2)  # => (B, C, 1, H, W)
+        
+        # ACSConv (3D) forcibly on "fake 3D" input with depth=1
+        if HAVE_ACSCONV:
+            acs_2dshaped = ACSConv3d(
+                in_channels=C,
+                out_channels=out_channels_2d,
+                kernel_size=kernel_size_3d,
+                padding=1
+            ).to(device)
+        else:
+            acs_2dshaped = None
+
+        # Benchmark each
+        _ = benchmark_single_pass(conv2d, x_2d, label="Conv2d")
+        _ = benchmark_single_pass(crossd, x_2d, label="CrossDConv")
+        _ = benchmark_single_pass(conv3d_2dshaped, x_2d_as_3d, label="Conv3d [2D->3D shape]")
+        
+        if acs_2dshaped is not None:
+            _ = benchmark_single_pass(acs_2dshaped, x_2d_as_3d, label="ACSConv [2D->3D shape]")
 
 
 if __name__ == "__main__":
-    benchmark()
+    benchmark_comparison()
