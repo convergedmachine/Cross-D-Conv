@@ -204,12 +204,9 @@ class CrossDConv(nn.Module):
 
         return conv_output
 
-try:
-    from acsconv import ACSConv3d
-    HAVE_ACSCONV = True
-except ImportError:
-    print("ACSConv not installed. Install via `pip install acsconv`.")
-    HAVE_ACSCONV = False
+
+from acsconv.operators import ACSConv
+HAVE_ACSCONV = True
 
 def benchmark_single_pass(
     layer, 
@@ -317,7 +314,7 @@ def benchmark_comparison():
         
         # ACSConv (3D) forcibly on "fake 3D" input with depth=1
         if HAVE_ACSCONV:
-            acs_2dshaped = ACSConv3d(
+            acs_2dshaped = ACSConv(
                 in_channels=C,
                 out_channels=out_channels_2d,
                 kernel_size=kernel_size_3d,
