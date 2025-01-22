@@ -18,9 +18,9 @@ Cross-D Conv introduces a method that enables seamless weight transfer between 2
 To train the model using distributed training:
 
 ```bash
-torchrun --nproc_per_node=16 --standalone train.py \
+torchrun --nproc_per_node=8 --standalone train.py \
     --data-path /path/to/radimagenet \
-    --workers 16 \
+    --workers 32 \
     --batch-size 32 \
     --sync-bn \
     --rot
