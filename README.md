@@ -13,19 +13,11 @@ This repository introduces **Cross-D Conv**, a novel convolutional operation des
 
 ## Dataset & Weights
 
-### Pretrained Weights
 Access pretrained weights for Cross-D Conv on Hugging Face:
 - **[Cross-D Conv Weights](https://huggingface.co/convergedmachine/Cross-D-Conv)**
-
-These weights are optimized for both 2D and 3D datasets, leveraging the Cross-D Conv operation for enhanced medical imaging performance.
-
----
-
-### Datasets
-The following datasets are available for training and evaluation:
 - **[Enhanced MedMNIST Dataset](https://huggingface.co/datasets/convergedmachine/Enhanced-MedMNIST)**
 
-This dataset includes a curated collection of medical imaging data across multiple modalities (CT, MRI, Ultrasound) to support multimodal and cross-dimensional training.
+These weights are optimized for both 2D and 3D datasets, leveraging the Cross-D Conv operation for enhanced medical imaging performance. This dataset includes a curated collection of medical imaging data across multiple modalities (CT, MRI, Ultrasound) to support multimodal and cross-dimensional training.
 
 ---
 
