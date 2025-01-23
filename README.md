@@ -1,4 +1,4 @@
-# Cross-D Conv: Bridging 2D and 3D Medical Imaging Analysis
+## Cross-D Conv: Cross-Dimensional Transferable Knowledge Base via Fourier Shifting Operation
 
 This repository introduces **Cross-D Conv**, a novel convolutional operation designed to bridge the dimensional gap between 2D and 3D medical imaging datasets. By leveraging the Fourier domain for phase shifting, Cross-D Conv enables seamless weight transfer between 2D and 3D convolutional operations. This method addresses the challenge of multimodal data scarcity by utilizing abundant 2D data to enhance 3D model performance effectively.
 
