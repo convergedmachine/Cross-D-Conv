@@ -3,7 +3,6 @@ def get_args_parser(add_help=True):
 
     parser = argparse.ArgumentParser(description="PyTorch Classification Training", add_help=add_help)
 
-    parser.add_argument("--depth", default=18, type=int, help="model name")
     parser.add_argument("--data-path", default="D:/_datasets/refined_radiology_ai/rRadImagenet1L/", type=str, help="dataset path")
     parser.add_argument("--output-dir", default=".", type=str, help="path to save outputs")
     parser.add_argument("--epochs", default=90, type=int, metavar="N", help="number of total epochs to run")
